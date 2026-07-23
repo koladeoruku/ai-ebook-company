@@ -2,10 +2,13 @@
 
 Usage: python scripts/generate_storefront.py
 
-Regenerates storefront/index.html (catalog) and storefront/book/<slug>/index.html
+Regenerates docs/index.html (catalog) and docs/book/<slug>/index.html
 (per-book landing page with the Stripe payment link), and copies each book's
-epub/pdf into storefront/downloads/. Only books with status == "published"
+epub/pdf into docs/downloads/. Only books with status == "published"
 (i.e. they have a real stripe_payment_link) are listed for sale.
+
+Lives under docs/ (not storefront/) because GitHub Pages, when deploying
+from a branch, can only serve from the repo root or a folder named /docs.
 """
 import json
 import shutil
@@ -13,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BOOKS_DIR = ROOT / "company" / "books"
-STOREFRONT_DIR = ROOT / "storefront"
+STOREFRONT_DIR = ROOT / "docs"
 COMPANY_NAME = "Autonomous Press"
 
 BASE_CSS = """

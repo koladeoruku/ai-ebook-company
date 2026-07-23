@@ -9,7 +9,7 @@ into metadata.json. Does NOT mark status as "published" itself -- the
 publisher subagent does that only after this AND the epub/pdf both exist.
 
 The payment link's post-purchase redirect points at the book's unlisted
-thank-you page (storefront/book/<slug>/thank-you.html), which links the
+thank-you page (docs/book/<slug>/thank-you.html), which links the
 actual epub/pdf downloads. STOREFRONT_BASE_URL must be set to the live
 GitHub Pages URL for that redirect to work once deployed.
 """

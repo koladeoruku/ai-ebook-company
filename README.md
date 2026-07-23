@@ -51,7 +51,9 @@ after you've verified a full test purchase works end to end.
    free-tier Pages requires a public repo).
 2. Push this project to it (see `git init` step below).
 3. In the repo's Settings → Pages, set the source to deploy from the `main`
-   branch, folder `/storefront`.
+   branch, folder `/docs` (GitHub Pages can only serve the repo root or a
+   folder literally named `docs` when deploying from a branch — that's why
+   the storefront lives at `docs/` in this repo, not `storefront/`).
 4. Note the resulting URL (e.g. `https://yourusername.github.io/your-repo-name`).
 
 ### 5. Configure your environment
@@ -86,7 +88,7 @@ you can watch every step and read the actual output:
 Check afterward:
 - `company/books/<slug>/manuscript.md` — is the writing actually good?
 - `company/books/<slug>/cover.png` and the `.epub`/`.pdf` files — did they generate?
-- `storefront/index.html` (open locally in a browser) — does the catalog render?
+- `docs/index.html` (open locally in a browser) — does the catalog render?
 - The Stripe payment link in `company/books/<slug>/metadata.json` — open it and
   complete a **test-mode** purchase (use Stripe's test card `4242 4242 4242 4242`)
   to confirm the post-purchase redirect actually delivers the download.
@@ -119,5 +121,5 @@ Let the first scheduled run fire and read its report before considering this
 .claude/settings.json permission allowlist so the cycle runs unattended
 company/              persistent state: org chart, backlog, ledger, books, reports
 scripts/               make_cover.py, generate_storefront.py, stripe_publish.py
-storefront/            the static site GitHub Pages serves (regenerated each cycle)
+docs/                  the static site GitHub Pages serves (regenerated each cycle)
 ```
