@@ -3,9 +3,12 @@
 Usage: python scripts/generate_storefront.py
 
 Regenerates docs/index.html (catalog) and docs/book/<slug>/index.html
-(per-book landing page with the Stripe payment link), and copies each book's
+(per-book landing page with the Paystack payment link), and copies each book's
 epub/pdf into docs/downloads/. Only books with status == "published"
-(i.e. they have a real stripe_payment_link) are listed for sale.
+(i.e. they have a real paystack_payment_link) are listed for sale.
+
+Prices are in whole Naira (NGN) since this company sells through Paystack,
+which is built for Nigerian merchants (Stripe doesn't support Nigeria).
 
 Lives under docs/ (not storefront/) because GitHub Pages, when deploying
 from a branch, can only serve from the repo root or a folder named /docs.
@@ -68,7 +71,7 @@ def render_index(published_books):
           <div class="body">
             <h3>{b['title']}</h3>
             <p>{b.get('blurb', '')}</p>
-            <div class="price">${b['price']:.2f}</div>
+            <div class="price">₦{b['price']:,.2f}</div>
             <a class="buy" href="book/{slug}/">View book</a>
           </div>
         </div>"""
@@ -89,9 +92,9 @@ def render_index(published_books):
 
 def render_book_page(b):
     slug = b["slug"]
-    link = b.get("stripe_payment_link")
+    link = b.get("paystack_payment_link")
     buy_html = (
-        f'<a class="buy" href="{link}">Buy for ${b["price"]:.2f}</a>'
+        f'<a class="buy" href="{link}">Buy for ₦{b["price"]:,.2f}</a>'
         if link else '<p><em>Not yet available for purchase.</em></p>'
     )
     return f"""<!doctype html>
@@ -136,7 +139,7 @@ def render_thank_you_page(b):
 
 def main() -> None:
     books = load_books()
-    published = [b for b in books if b.get("status") == "published" and b.get("stripe_payment_link")]
+    published = [b for b in books if b.get("status") == "published" and b.get("paystack_payment_link")]
 
     (STOREFRONT_DIR / "downloads").mkdir(parents=True, exist_ok=True)
     (STOREFRONT_DIR / "book").mkdir(parents=True, exist_ok=True)

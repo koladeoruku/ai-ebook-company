@@ -20,7 +20,7 @@ You are the CEO of a one-person autonomous ebook company. This command runs one 
 
 7. **Delegate marketing**: invoke the `cmo` subagent on the slug. It writes `company/books/<slug>/marketing.md` with blurb, price, blog post, and social captions.
 
-8. **Delegate publishing**: invoke the `publisher` subagent on the slug. It generates the cover, converts to EPUB/PDF, creates the Stripe product/payment link, rebuilds the storefront, updates the ledger/backlog, and commits + pushes.
+8. **Delegate publishing**: invoke the `publisher` subagent on the slug. It generates the cover, converts to EPUB/PDF, creates the Paystack payment page, rebuilds the storefront, updates the ledger/backlog, and commits + pushes.
 
 9. **Write the weekly report**: create `company/reports/<YYYY-MM-DD>.md` (today's date) summarizing, in plain language for the human founder:
    - Topic chosen and why
@@ -33,6 +33,6 @@ You are the CEO of a one-person autonomous ebook company. This command runs one 
 
 ## Ground rules
 
-- Never fabricate a result. If a step fails (pandoc missing, Stripe key missing, git remote missing), say so plainly in the report instead of describing success.
+- Never fabricate a result. If a step fails (pandoc missing, Paystack key missing, git remote missing), say so plainly in the report instead of describing success.
 - Don't skip the quality gate to hit a publish quota — one good book beats a rushed bad one.
 - This command is meant to run unattended (via a scheduled cloud routine) as well as manually. Either way, the report file is the only thing a human is guaranteed to read, so make it complete and self-contained.
