@@ -10,6 +10,13 @@ Nothing here is a demo — when fully wired up, this creates real, sellable prod
 and real Paystack payment links. Do the one-time setup below carefully, and run the
 first cycle manually before trusting the automated weekly schedule.
 
+**⚠️ This is running on LIVE Paystack keys as of 2026-07-23**, switched on at the
+founder's request before a full test-mode purchase walkthrough was completed and
+before any book existed. The next `/run-cycle` that reaches the Publisher step
+creates a genuinely live, real-money payment page — there is no test/staging
+buffer anymore. See `.env` for the (commented-out) test keys if you want to
+switch back to test mode for any reason.
+
 Payments run through **Paystack**, not Stripe — Stripe doesn't officially support
 Nigeria as a business's home country. Paystack is Stripe-owned, built for Nigerian
 businesses, and its Payment Pages are the equivalent of Stripe Payment Links.
@@ -54,30 +61,30 @@ Installed via `pip install -r requirements.txt` (`requests`, `Pillow`).
   a branch — that's why the storefront lives at `docs/`, not `storefront/`)
 - Live storefront URL: **https://koladeoruku.github.io/ai-ebook-company/**
 
-### 4. Paystack account — test keys in, USD approval pending ⬜
+### 4. Paystack account — LIVE ✅ (USD approval still pending) ⬜
 
-- Test secret/public keys are already in `.env` (gitignored) and confirmed working
-  against the real Paystack API (a test payment page was created and deleted
-  during setup).
-- **USD is not enabled yet** on this account — the API returned "Currency not
-  supported" when tried. To enable it: finish business KYC activation on
-  Paystack, then request "Accept international payments" in the Preferences
-  tab (Paystack says ~48hr review). Until approved, the company keeps running
-  fine in the NGN-fallback mode described above.
+- Live secret/public keys are in `.env` (gitignored). Test keys are also kept
+  there, commented out, in case you want to switch back to test mode.
+- **USD is not confirmed enabled** on this account — it returned "Currency not
+  supported" under test mode; not yet re-verified under live. To enable it:
+  finish business KYC activation on Paystack, then request "Accept
+  international payments" in the Preferences tab (Paystack says ~48hr
+  review). Until confirmed, `PAYSTACK_CURRENCY=NGN` keeps the company running
+  via the auto-conversion fallback described above.
 - Once approved, flip `PAYSTACK_CURRENCY` from `NGN` to `USD` in `.env` (and in
   the secrets of any scheduled cloud routine) — no code changes needed.
-- Switch `PAYSTACK_SECRET_KEY`/`PAYSTACK_PUBLIC_KEY` to live keys only after
-  you've verified a full test purchase works end to end.
 
 ### 5. Configure your environment — done ✅
 
-`.env` exists locally (gitignored) with real test keys, `PAYSTACK_CURRENCY=NGN`
+`.env` exists locally (gitignored) with real **live** keys, `PAYSTACK_CURRENCY=NGN`
 (current working fallback), and `STOREFRONT_BASE_URL` set to the live Pages URL.
 
 ## Running the first cycle manually
 
 Before trusting the weekly schedule, run one cycle yourself inside Claude Code so
-you can watch every step and read the actual output:
+you can watch every step and read the actual output. Because keys are live, the
+Publisher step will create a real, purchasable payment page the moment it runs —
+there's no test-mode buffer:
 
 ```
 /run-cycle
@@ -88,13 +95,12 @@ Check afterward:
 - `company/books/<slug>/cover.png` and the `.epub`/`.pdf` files — did they generate?
 - `docs/index.html` (open locally in a browser, or the live Pages URL after a push)
   — does the catalog render, and does the USD price look right?
-- The Paystack payment link in `company/books/<slug>/metadata.json` — open it and
-  complete a **test-mode** purchase (Paystack's test cards are listed in their docs
-  — check their current test-cards page since these can change) to confirm the
-  post-purchase redirect actually delivers the download.
+- The Paystack payment link in `company/books/<slug>/metadata.json` — this is now
+  a **real** link. Either complete an actual small real purchase yourself to
+  confirm the post-purchase redirect delivers the download, or temporarily set
+  `PAYSTACK_SECRET_KEY`/`PAYSTACK_PUBLIC_KEY` back to the commented-out test keys
+  in `.env` for a risk-free test-mode purchase first, then switch back to live.
 - `company/reports/<date>.md` — is this something you'd trust unattended?
-
-Only switch to **live** keys once you're satisfied.
 
 ## Turning on the weekly autonomous cycle
 
