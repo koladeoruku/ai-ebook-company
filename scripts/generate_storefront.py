@@ -5,7 +5,8 @@ Usage: python scripts/generate_storefront.py
 Regenerates docs/index.html (catalog) and docs/book/<slug>/index.html
 (per-book landing page with the Paystack payment link), and copies each book's
 epub/pdf into docs/downloads/. Only books with status == "published"
-(i.e. they have a real paystack_payment_link) are listed for sale.
+(i.e. they have a real paystack_payment_link) are listed for sale. Also
+regenerates docs/sitemap.xml and docs/robots.txt.
 
 The per-book page is a problem-first sales page, not a bare "here's a book,
 buy now" listing: if company/books/<slug>/blog_post.md exists (the CMO writes
@@ -13,6 +14,13 @@ one per book), its content -- which opens with the reader's problem and only
 then introduces the book as the solution -- IS the page, with the buy button
 at the natural end of that pitch. A bare price/blurb layout is only a
 fallback for books that predate this (or somehow lack a blog post).
+
+Each page also gets baseline on-page SEO: a meta description (from
+metadata.json's `seo_description`, written by the SEO department -- falls
+back to the blurb if absent), Open Graph tags, a canonical link, and
+schema.org Book JSON-LD. Absolute URLs (canonical, og:image) need
+STOREFRONT_BASE_URL set in the environment; without it they're just omitted
+rather than pointing somewhere wrong.
 
 Prices are always displayed in USD -- this company's one canonical pricing
 currency -- even though checkout may actually charge NGN under the hood
@@ -23,7 +31,9 @@ officially support Nigeria as a business's home country.
 Lives under docs/ (not storefront/) because GitHub Pages, when deploying
 from a branch, can only serve from the repo root or a folder named /docs.
 """
+import html
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -33,6 +43,7 @@ ROOT = Path(__file__).resolve().parent.parent
 BOOKS_DIR = ROOT / "company" / "books"
 STOREFRONT_DIR = ROOT / "docs"
 COMPANY_NAME = "Autonomous Press"
+BASE_URL = os.environ.get("STOREFRONT_BASE_URL", "").rstrip("/")
 
 BASE_CSS = """
 body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 0;
@@ -92,6 +103,52 @@ def load_blog_post(src_dir: Path):
     return title, body_html
 
 
+def seo_description_for(b) -> str:
+    desc = b.get("seo_description") or b.get("blurb", "") or ""
+    desc = " ".join(desc.split())  # collapse whitespace/newlines
+    return desc[:157] + "..." if len(desc) > 160 else desc
+
+
+def seo_head_tags(*, page_title: str, description: str, path: str, image_path: str, book=None) -> str:
+    """path/image_path are relative to the site root, e.g. 'book/slug/' and 'book/slug/cover.png'."""
+    desc_attr = html.escape(description, quote=True)
+    title_attr = html.escape(page_title, quote=True)
+    canonical = f"{BASE_URL}/{path}" if BASE_URL else None
+    image_url = f"{BASE_URL}/{image_path}" if BASE_URL else None
+
+    tags = [f'<meta name="description" content="{desc_attr}">']
+    if canonical:
+        tags.append(f'<link rel="canonical" href="{canonical}">')
+    tags.append(f'<meta property="og:title" content="{title_attr}">')
+    tags.append(f'<meta property="og:description" content="{desc_attr}">')
+    tags.append(f'<meta property="og:type" content="{"book" if book else "website"}">')
+    if canonical:
+        tags.append(f'<meta property="og:url" content="{canonical}">')
+    if image_url:
+        tags.append(f'<meta property="og:image" content="{image_url}">')
+
+    if book:
+        ld = {
+            "@context": "https://schema.org",
+            "@type": "Book",
+            "name": book["title"],
+            "description": description,
+        }
+        if image_url:
+            ld["image"] = image_url
+        if book.get("paystack_payment_link"):
+            ld["offers"] = {
+                "@type": "Offer",
+                "price": f"{book['price']:.2f}",
+                "priceCurrency": "USD",
+                "url": book["paystack_payment_link"],
+                "availability": "https://schema.org/InStock",
+            }
+        tags.append(f'<script type="application/ld+json">{json.dumps(ld)}</script>')
+
+    return "\n".join(tags)
+
+
 def render_index(published_books):
     cards = ""
     for b in published_books:
@@ -106,10 +163,17 @@ def render_index(published_books):
             <a class="buy" href="book/{slug}/">Read more</a>
           </div>
         </div>"""
+    head_extra = seo_head_tags(
+        page_title=COMPANY_NAME,
+        description="Short, practical ebooks — researched, written, edited, and published by an autonomous AI company.",
+        path="",
+        image_path="",
+    )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{COMPANY_NAME}</title>
+{head_extra}
 <style>{BASE_CSS}</style>
 </head><body>
 <div class="header">
@@ -148,6 +212,7 @@ def render_buy_section(b):
 
 
 def render_book_page(b, src_dir: Path):
+    slug = b["slug"]
     blog_title, blog_body_html = load_blog_post(src_dir)
     buy_section = render_buy_section(b)
 
@@ -159,10 +224,20 @@ def render_book_page(b, src_dir: Path):
         page_title = b["title"]
         main_content = f"<h1>{b['title']}</h1><p>{b.get('blurb', '')}</p>\n{buy_section}"
 
+    description = seo_description_for(b)
+    head_extra = seo_head_tags(
+        page_title=page_title,
+        description=description,
+        path=f"book/{slug}/",
+        image_path=f"book/{slug}/cover.png",
+        book=b,
+    )
+
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{page_title} — {COMPANY_NAME}</title>
+{head_extra}
 <style>{BASE_CSS}</style>
 </head><body>
 <div class="book-page">
@@ -178,6 +253,7 @@ def render_thank_you_page(b):
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Thanks for buying {b['title']}</title>
+<meta name="robots" content="noindex">
 <style>{BASE_CSS}</style>
 </head><body>
 <div class="book-page">
@@ -192,6 +268,21 @@ def render_thank_you_page(b):
   </p>
 </div>
 </body></html>"""
+
+
+def render_sitemap(published_books) -> str:
+    urls = [BASE_URL + "/"] if BASE_URL else []
+    if BASE_URL:
+        urls += [f"{BASE_URL}/book/{b['slug']}/" for b in published_books]
+    entries = "\n".join(f"  <url><loc>{u}</loc></url>" for u in urls)
+    return f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{entries}\n</urlset>\n'
+
+
+def render_robots() -> str:
+    lines = ["User-agent: *", "Allow: /"]
+    if BASE_URL:
+        lines.append(f"Sitemap: {BASE_URL}/sitemap.xml")
+    return "\n".join(lines) + "\n"
 
 
 def main() -> None:
@@ -224,6 +315,10 @@ def main() -> None:
                 shutil.copyfile(f, STOREFRONT_DIR / "downloads" / f"{slug}.{ext}")
 
     (STOREFRONT_DIR / "index.html").write_text(render_index(published), encoding="utf-8")
+    (STOREFRONT_DIR / "sitemap.xml").write_text(render_sitemap(published), encoding="utf-8")
+    (STOREFRONT_DIR / "robots.txt").write_text(render_robots(), encoding="utf-8")
+    if not BASE_URL:
+        print("Note: STOREFRONT_BASE_URL not set -- sitemap.xml/canonical/og:image URLs were skipped.")
     print(f"Rebuilt storefront: {len(published)} published / {len(books)} total books.")
 
 

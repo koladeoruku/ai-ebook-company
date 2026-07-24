@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://koladeoruku.github.io/ai-ebook-company/sitemap.xml

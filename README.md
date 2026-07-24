@@ -1,10 +1,17 @@
 # Autonomous Press — an AI ebook company that runs itself
 
-This repo *is* the company. A weekly cycle researches a trending topic, writes and
-edits a full ebook, prices and markets it, creates a real Paystack payment page, and
-publishes it to a free static storefront — then writes you a plain-English report.
+This repo *is* the company. A weekly cycle improves its own writing/marketing
+craft, researches a trending topic, writes and edits a full ebook, prices and
+markets it, creates a real Paystack payment page, publishes it to a free static
+storefront, then grows visibility via SEO and resells the catalog to real past
+buyers by email — and writes you a plain-English report throughout.
 See `.claude/commands/run-cycle.md` for the orchestration logic and
 `.claude/agents/*.md` for each department's role.
+
+Two departments — **R&D** (craft research) and **Growth** (SEO + resell email) —
+have standing autonomy: they research and implement changes every cycle without
+asking the founder first. That's a deliberate choice the founder made, not an
+oversight; see `company/org_chart.md`.
 
 Nothing here is a demo — when fully wired up, this creates real, sellable products
 and real Paystack payment links. Do the one-time setup below carefully, and run the
@@ -79,6 +86,16 @@ Installed via `pip install -r requirements.txt` (`requests`, `Pillow`).
 `.env` exists locally (gitignored) with real **live** keys, `PAYSTACK_CURRENCY=NGN`
 (current working fallback), and `STOREFRONT_BASE_URL` set to the live Pages URL.
 
+### 6. Brevo account — still needed ⬜ (for Growth's resell emails)
+
+Sign up free at https://www.brevo.com (free tier: ~300 emails/day), verify one
+sender email address (no domain/DNS ownership needed for this), and get an API
+key from the SMTP & API settings. Fill in `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`,
+and `BREVO_SENDER_NAME` in `.env`. Until this is done, the Growth department
+still drafts and commits resell campaigns every cycle (once there are real
+customers and a second book to recommend) — it just can't send them yet;
+`scripts/send_campaign.py` fails cleanly rather than faking a send.
+
 ## Running the first cycle manually
 
 Before trusting the weekly schedule, run one cycle yourself inside Claude Code so
@@ -113,9 +130,10 @@ manually any time.
 To set it up, use the `schedule` skill (`/schedule`) from within this project and
 point it at `/run-cycle` on a weekly interval. You'll need to make sure the routine
 has access to: this repo (so it can pull/push), and the same environment variables
-(`PAYSTACK_SECRET_KEY`, `PAYSTACK_CURRENCY`, `STOREFRONT_BASE_URL`) configured as
-secrets for the routine rather than a local `.env` file, since the routine doesn't
-run on this machine.
+(`PAYSTACK_SECRET_KEY`, `PAYSTACK_CURRENCY`, `STOREFRONT_BASE_URL`, and once set up,
+`BREVO_API_KEY`/`BREVO_SENDER_EMAIL`/`BREVO_SENDER_NAME`) configured as secrets for
+the routine rather than a local `.env` file, since the routine doesn't run on this
+machine.
 
 Let the first scheduled run fire and read its report before considering this
 "fire and forget."
@@ -123,10 +141,13 @@ Let the first scheduled run fire and read its report before considering this
 ## Project layout
 
 ```
-.claude/agents/       role prompts (researcher, ghostwriter, editor, cmo, publisher)
+.claude/agents/       role prompts (rd, researcher, ghostwriter, editor, cmo, publisher, growth)
 .claude/commands/     run-cycle.md — the CEO's weekly orchestration prompt
 .claude/settings.json permission allowlist so the cycle runs unattended
-company/              persistent state: org chart, backlog, ledger, books, reports
-scripts/               make_cover.py, generate_storefront.py, paystack_publish.py
+company/              persistent state: org chart, backlog, ledger, books, reports,
+                       craft_playbook.md / seo_playbook.md / growth_playbook.md,
+                       customers.json, unsubscribed.md, campaigns/
+scripts/               make_cover.py, generate_storefront.py, paystack_publish.py,
+                       fetch_customers.py, send_campaign.py
 docs/                  the static site GitHub Pages serves (regenerated each cycle)
 ```
