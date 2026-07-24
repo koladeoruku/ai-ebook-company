@@ -7,8 +7,11 @@ Regenerates docs/index.html (catalog) and docs/book/<slug>/index.html
 epub/pdf into docs/downloads/. Only books with status == "published"
 (i.e. they have a real paystack_payment_link) are listed for sale.
 
-Prices are in whole Naira (NGN) since this company sells through Paystack,
-which is built for Nigerian merchants (Stripe doesn't support Nigeria).
+Prices are always displayed in USD -- this company's one canonical pricing
+currency -- even though checkout may actually charge NGN under the hood
+until Paystack's international-payments approval lands (see
+scripts/paystack_publish.py). Stripe isn't used because it doesn't
+officially support Nigeria as a business's home country.
 
 Lives under docs/ (not storefront/) because GitHub Pages, when deploying
 from a branch, can only serve from the repo root or a folder named /docs.
@@ -71,7 +74,7 @@ def render_index(published_books):
           <div class="body">
             <h3>{b['title']}</h3>
             <p>{b.get('blurb', '')}</p>
-            <div class="price">₦{b['price']:,.2f}</div>
+            <div class="price">${b['price']:,.2f}</div>
             <a class="buy" href="book/{slug}/">View book</a>
           </div>
         </div>"""
@@ -94,9 +97,16 @@ def render_book_page(b):
     slug = b["slug"]
     link = b.get("paystack_payment_link")
     buy_html = (
-        f'<a class="buy" href="{link}">Buy for ₦{b["price"]:,.2f}</a>'
+        f'<a class="buy" href="{link}">Buy for ${b["price"]:,.2f}</a>'
         if link else '<p><em>Not yet available for purchase.</em></p>'
     )
+    fx_note = ""
+    if link and b.get("charge_currency") == "NGN":
+        fx_note = (
+            f'<p style="color:#9a9aa8;font-size:.85rem">'
+            f'Checkout charges NGN {b.get("charge_amount", 0):,.2f} '
+            f'(today\'s USD/NGN rate) while international USD payments are pending approval.</p>'
+        )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -108,8 +118,9 @@ def render_book_page(b):
   <img src="cover.png" alt="{b['title']} cover">
   <h1>{b['title']}</h1>
   <p>{b.get('blurb', '')}</p>
-  <p class="price">${b['price']:.2f}</p>
+  <p class="price">${b['price']:,.2f}</p>
   {buy_html}
+  {fx_note}
   <div style="clear:both"></div>
 </div>
 </body></html>"""
@@ -141,6 +152,10 @@ def main() -> None:
     books = load_books()
     published = [b for b in books if b.get("status") == "published" and b.get("paystack_payment_link")]
 
+    # Full clean rebuild each time -- otherwise a book removed from company/books/
+    # would leave a stale, orphaned page/downloads sitting in the live storefront.
+    shutil.rmtree(STOREFRONT_DIR / "book", ignore_errors=True)
+    shutil.rmtree(STOREFRONT_DIR / "downloads", ignore_errors=True)
     (STOREFRONT_DIR / "downloads").mkdir(parents=True, exist_ok=True)
     (STOREFRONT_DIR / "book").mkdir(parents=True, exist_ok=True)
 

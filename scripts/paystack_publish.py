@@ -2,16 +2,24 @@
 
 Usage: python scripts/paystack_publish.py <slug>
 
-Reads company/books/<slug>/metadata.json for title/blurb/price (price is in
-whole Naira, e.g. 4999.00 == NGN 4,999), creates a Paystack Payment Page via
-the API (requires PAYSTACK_SECRET_KEY in the environment), and writes the
-resulting paystack_page_slug / paystack_payment_link back into metadata.json.
-Does NOT mark status as "published" itself -- the publisher subagent does
-that only after this AND the epub/pdf both exist.
+Reads company/books/<slug>/metadata.json for title/blurb/price. price is
+ALWAYS a USD decimal amount (e.g. 9.99) -- USD is this company's one
+canonical pricing currency, set by the CMO regardless of which currency
+Paystack actually charges in.
 
-Stripe doesn't support Nigeria for standard merchant accounts, so this
-company uses Paystack instead -- it's Stripe-owned, built for Nigerian
+Stripe doesn't officially support Nigeria as a business's home country, so
+this company uses Paystack instead -- it's Stripe-owned, built for Nigerian
 businesses, and its Payment Pages are the equivalent of Stripe Payment Links.
+Paystack can accept and settle in USD for Nigerian businesses once "Accept
+international payments" is enabled on the account (Preferences tab, after
+business KYC activation).
+
+Until that approval lands, set PAYSTACK_CURRENCY=NGN in .env as an interim
+fallback. In that mode this script converts the USD price to NGN using a
+live, free, no-key exchange rate (open.er-api.com) at publish time -- never
+a hardcoded rate -- and records the rate used in metadata.json so the
+ledger stays honest about what was actually charged. Once USD is approved,
+switch PAYSTACK_CURRENCY back to USD and no conversion happens at all.
 
 The payment page's redirect_url points at the book's unlisted thank-you
 page (docs/book/<slug>/thank-you.html), which links the actual epub/pdf
@@ -25,6 +33,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PAYSTACK_API_BASE = "https://api.paystack.co"
+FX_API_URL = "https://open.er-api.com/v6/latest/USD"
+
+
+def get_usd_to_ngn_rate(requests) -> float:
+    resp = requests.get(FX_API_URL, timeout=15)
+    resp.raise_for_status()
+    body = resp.json()
+    if body.get("result") != "success":
+        raise RuntimeError(f"FX API did not return success: {body}")
+    return float(body["rates"]["NGN"])
 
 
 def main() -> None:
@@ -58,14 +76,31 @@ def main() -> None:
         print("Warning: STOREFRONT_BASE_URL is not set — the post-purchase redirect "
               "will not point anywhere until you set it and re-run this step.")
 
-    price_ngn = float(meta["price"])
-    amount_kobo = int(round(price_ngn * 100))
+    currency = os.environ.get("PAYSTACK_CURRENCY", "USD").upper()
+    price_usd = float(meta["price"])
+
+    if currency == "USD":
+        charge_amount = price_usd
+        fx_rate = None
+    elif currency == "NGN":
+        try:
+            fx_rate = get_usd_to_ngn_rate(requests)
+        except Exception as exc:
+            print(f"Could not fetch a live USD->NGN rate ({exc}). Not publishing with a "
+                  "guessed rate — fix connectivity/FX API access and retry.")
+            sys.exit(1)
+        charge_amount = price_usd * fx_rate
+    else:
+        print(f"Unsupported PAYSTACK_CURRENCY={currency!r}. Use USD or NGN.")
+        sys.exit(1)
+
+    amount_subunit = int(round(charge_amount * 100))  # cents (USD) / kobo (NGN)
 
     payload = {
         "name": meta["title"],
         "description": (meta.get("blurb", "") or "")[:500],
-        "amount": amount_kobo,
-        "currency": "NGN",
+        "amount": amount_subunit,
+        "currency": currency,
     }
     if storefront_base:
         payload["redirect_url"] = f"{storefront_base}/book/{slug}/thank-you.html"
@@ -83,6 +118,11 @@ def main() -> None:
     body = response.json()
     if not response.ok or not body.get("status"):
         print(f"Paystack API error ({response.status_code}): {body.get('message', body)}")
+        if currency == "USD":
+            print("If this mentions currency/channel support, USD likely isn't enabled yet "
+                  "on this account -- request 'Accept international payments' in Paystack's "
+                  "Preferences tab, or set PAYSTACK_CURRENCY=NGN in .env to publish in the "
+                  "meantime.")
         sys.exit(1)
 
     data = body["data"]
@@ -92,10 +132,17 @@ def main() -> None:
     meta["paystack_page_id"] = data.get("id")
     meta["paystack_page_slug"] = page_slug
     meta["paystack_payment_link"] = payment_link
+    meta["charge_currency"] = currency
+    meta["charge_amount"] = round(charge_amount, 2)
+    if fx_rate is not None:
+        meta["fx_rate_usd_ngn"] = fx_rate
     meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
     print(f"Created Paystack payment page {data.get('id')} (slug: {page_slug})")
     print(f"Payment link: {payment_link}")
+    if fx_rate is not None:
+        print(f"Charged {currency} {charge_amount:,.2f} (converted from USD {price_usd:.2f} "
+              f"at rate {fx_rate:,.2f})")
 
 
 if __name__ == "__main__":
