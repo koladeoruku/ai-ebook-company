@@ -7,6 +7,13 @@ Regenerates docs/index.html (catalog) and docs/book/<slug>/index.html
 epub/pdf into docs/downloads/. Only books with status == "published"
 (i.e. they have a real paystack_payment_link) are listed for sale.
 
+The per-book page is a problem-first sales page, not a bare "here's a book,
+buy now" listing: if company/books/<slug>/blog_post.md exists (the CMO writes
+one per book), its content -- which opens with the reader's problem and only
+then introduces the book as the solution -- IS the page, with the buy button
+at the natural end of that pitch. A bare price/blurb layout is only a
+fallback for books that predate this (or somehow lack a blog post).
+
 Prices are always displayed in USD -- this company's one canonical pricing
 currency -- even though checkout may actually charge NGN under the hood
 until Paystack's international-payments approval lands (see
@@ -19,6 +26,8 @@ from a branch, can only serve from the repo root or a folder named /docs.
 import json
 import shutil
 from pathlib import Path
+
+import markdown
 
 ROOT = Path(__file__).resolve().parent.parent
 BOOKS_DIR = ROOT / "company" / "books"
@@ -46,6 +55,8 @@ body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padd
 .book-page { max-width: 800px; margin: 0 auto; padding: 2rem 1.5rem; }
 .book-page img { max-width: 320px; float: left; margin: 0 1.5rem 1rem 0; border-radius: 8px; }
 .back { color: #9a9aa8; text-decoration: none; }
+.pitch { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid #2a2d3a; }
+.pitch img { max-width: 220px; }
 footer { text-align: center; color: #6a6a78; padding: 2rem; font-size: .85rem; }
 """
 
@@ -64,6 +75,23 @@ def load_books():
     return books
 
 
+def load_blog_post(src_dir: Path):
+    """Returns (title, body_html) or (None, None) if no blog_post.md exists."""
+    blog_path = src_dir / "blog_post.md"
+    if not blog_path.exists():
+        return None, None
+    text = blog_path.read_text(encoding="utf-8").strip()
+    lines = text.splitlines()
+    title = None
+    body_start = 0
+    if lines and lines[0].startswith("# "):
+        title = lines[0][2:].strip()
+        body_start = 1
+    body_md = "\n".join(lines[body_start:]).strip()
+    body_html = markdown.markdown(body_md)
+    return title, body_html
+
+
 def render_index(published_books):
     cards = ""
     for b in published_books:
@@ -75,7 +103,7 @@ def render_index(published_books):
             <h3>{b['title']}</h3>
             <p>{b.get('blurb', '')}</p>
             <div class="price">${b['price']:,.2f}</div>
-            <a class="buy" href="book/{slug}/">View book</a>
+            <a class="buy" href="book/{slug}/">Read more</a>
           </div>
         </div>"""
     return f"""<!doctype html>
@@ -93,7 +121,7 @@ def render_index(published_books):
 </body></html>"""
 
 
-def render_book_page(b):
+def render_buy_section(b):
     slug = b["slug"]
     link = b.get("paystack_payment_link")
     buy_html = (
@@ -107,21 +135,39 @@ def render_book_page(b):
             f'Checkout charges NGN {b.get("charge_amount", 0):,.2f} '
             f'(today\'s USD/NGN rate) while international USD payments are pending approval.</p>'
         )
+    return f"""
+    <div class="pitch">
+      <img src="cover.png" alt="{b['title']} cover">
+      <h2>{b['title']}</h2>
+      <p>{b.get('blurb', '')}</p>
+      <p class="price">${b['price']:,.2f}</p>
+      {buy_html}
+      {fx_note}
+      <div style="clear:both"></div>
+    </div>"""
+
+
+def render_book_page(b, src_dir: Path):
+    blog_title, blog_body_html = load_blog_post(src_dir)
+    buy_section = render_buy_section(b)
+
+    if blog_body_html:
+        page_title = blog_title or b["title"]
+        main_content = f"<h1>{page_title}</h1>\n{blog_body_html}\n{buy_section}"
+    else:
+        # Fallback for a book with no blog_post.md -- bare listing.
+        page_title = b["title"]
+        main_content = f"<h1>{b['title']}</h1><p>{b.get('blurb', '')}</p>\n{buy_section}"
+
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{b['title']} — {COMPANY_NAME}</title>
+<title>{page_title} — {COMPANY_NAME}</title>
 <style>{BASE_CSS}</style>
 </head><body>
 <div class="book-page">
   <p><a class="back" href="../../">&larr; back to catalog</a></p>
-  <img src="cover.png" alt="{b['title']} cover">
-  <h1>{b['title']}</h1>
-  <p>{b.get('blurb', '')}</p>
-  <p class="price">${b['price']:,.2f}</p>
-  {buy_html}
-  {fx_note}
-  <div style="clear:both"></div>
+  {main_content}
 </div>
 </body></html>"""
 
@@ -169,7 +215,7 @@ def main() -> None:
         if cover_src.exists():
             shutil.copyfile(cover_src, page_dir / "cover.png")
 
-        (page_dir / "index.html").write_text(render_book_page(b), encoding="utf-8")
+        (page_dir / "index.html").write_text(render_book_page(b, src_dir), encoding="utf-8")
         (page_dir / "thank-you.html").write_text(render_thank_you_page(b), encoding="utf-8")
 
         for ext in ("epub", "pdf"):
