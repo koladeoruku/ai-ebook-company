@@ -5,8 +5,8 @@ Every cost here should be $0 by design (zero-budget constraint) — this tracks 
 Prices are always in USD — this company's one canonical pricing currency — even on cycles where the actual Paystack charge was auto-converted to NGN (see `charge_currency`/`charge_amount` in a book's `metadata.json`) while international USD payments are pending approval.
 
 **Running totals**
-- Books published: 0
-- Total listed catalog value: $0.00
+- Books published: 1
+- Total listed catalog value: $7.99
 - Revenue: check your Paystack dashboard directly — this file does not auto-reconcile actual sales, only what was listed.
 
 ## Books
@@ -19,4 +19,8 @@ Prices are always in USD — this company's one canonical pricing currency — e
 - paystack_payment_link: <url>
 -->
 
-_No books published yet._
+### Declutter When You're Overwhelmed (declutter-when-overwhelmed)
+- published_date: 2026-07-24
+- price: $7.99 (USD, canonical)
+- charge_currency / charge_amount: NGN 10,932.38 (converted at rate 1,368.26 USD/NGN)
+- paystack_payment_link: https://paystack.com/pay/z-xd9az5kl
