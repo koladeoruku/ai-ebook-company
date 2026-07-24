@@ -17,6 +17,14 @@
       "Bash(pandoc:*)",
       "Bash(python:*)",
       "Bash(python3:*)"
+    ],
+    "deny": [
+      "Bash(choco:*)",
+      "Bash(winget:*)",
+      "Bash(apt-get:*)",
+      "Bash(apt:*)",
+      "Bash(brew:*)",
+      "Bash(npm install -g:*)"
     ]
   }
 }
